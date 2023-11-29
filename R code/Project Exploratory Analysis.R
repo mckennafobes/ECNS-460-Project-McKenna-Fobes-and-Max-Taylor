@@ -3,6 +3,7 @@ library(tidyverse)
 library(dplyr)
 library(lubridate)
 library(reshape2)
+library(patchwork)
 
 # load in data
 bank_failures = read_csv("Bank_Failures_1948-2023.csv")
@@ -51,6 +52,7 @@ banks_indicators = extract(banks_indicators, Location, c("City", "State"),
 # remove commas from city variable and make final data set
 banks_indicators_final = banks_indicators|>
   mutate(City = str_replace_all(banks_indicators$City, ",", ""))
+save(banks_indicators_final, file = "Cleaned_Project_Data.RData")
 
 # EXPLORATORY ##################################################################
 # count of banks per state
@@ -107,3 +109,33 @@ ggplot(data = melted_corro, aes(x=Var1, y=Var2, fill=value)) +
   geom_text(aes(Var2, Var1, label = value), color = "White", size = 2)+
   theme(axis.text.x = element_text(angle = 90))+
   ggtitle("Correlation Heatmap Between Variables")
+
+# get data sets ready to join
+type_count = banks_indicators_final|>
+  group_by(`Bank Class`)|>
+  count()
+
+type_asset = banks_indicators_final|>
+  group_by(`Bank Class`)|>
+  summarize(mean = mean(`Estimated Loss`, na.rm=TRUE))
+
+types_analysis = type_count|>
+  left_join(type_asset, by = 'Bank Class')
+
+# create two separate bar charts to combine into one
+p1 = types_analysis %>%
+  ggplot(aes(`Bank Class`, n, fill = `Bank Class`)) + 
+  geom_col(position = "dodge") + 
+  scale_y_continuous(labels = scales::number_format())+
+  theme(legend.position="none", axis.text.x = element_text(angle = 90))+
+  labs(y="Amount Failed")
+
+p2  = types_analysis %>%
+  ggplot(aes(`Bank Class`, mean, fill = `Bank Class`)) + 
+  geom_col(position = "dodge") + 
+  scale_y_continuous(labels = scales::number_format())+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(y="Mean Estimated Loss")
+
+p1 + p2 + plot_annotation(title='Analysis of Bank Types')
+ 
